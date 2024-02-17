@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.datasets import make_moons
 from sklearn.decomposition import PCA
 from matplotlib.colors import ListedColormap
-from DATNN import DANN
+from DATNN import DATNN
 
 from matplotlib import pyplot
 from scipy.spatial.distance import cdist
@@ -16,7 +16,7 @@ def main():
     special_points = Xall[np.argmin(cdist(special, Xall), axis=1), :]
 
     # Standard NN
-    algo = DANN(hidden_layer_size=15, maxiter=500, lambda_adapt=6., seed=42, adversarial_representation=False)
+    algo = DATNN(hidden_layer_size=15, maxiter=500, lambda_adapt=6., seed=42, adversarial_representation=False)
     algo.fit(X, y, Xt)
 
     pyplot.subplot(2, 4, 1)
@@ -37,7 +37,7 @@ def main():
     draw_trans_data(X, y, Xt, neurons_to_draw=(algo.W, algo.b))
 
     # DANN
-    algo = DANN(hidden_layer_size=15, maxiter=500, lambda_adapt=6., seed=42)
+    algo = DATNN(hidden_layer_size=15, maxiter=500, lambda_adapt=6., seed=42)
     algo.fit(X, y, Xt)
 
     pyplot.subplot(2, 4, 5)

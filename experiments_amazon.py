@@ -1,5 +1,5 @@
 import numpy as np
-from DATNN import DANN
+from DATNN import DATNN
 from mSDA import compute_msda_representation
 from sklearn.datasets import load_svmlight_files
 from sklearn import svm
@@ -42,7 +42,7 @@ def main():
     xs, ys = xs[0:-nb_valid, :], ys[0:-nb_valid]
 
     print("Fit...")
-    algo = DANN(lambda_adapt=lambda_adapt, hidden_layer_size=hidden_layer_size, learning_rate=learning_rate,
+    algo = DATNN(lambda_adapt=lambda_adapt, hidden_layer_size=hidden_layer_size, learning_rate=learning_rate,
                 maxiter=maxiter, epsilon_init=None, seed=12342, adversarial_representation=adversarial, verbose=True)
     algo.fit(xs, ys, xt, xv, yv)
 
