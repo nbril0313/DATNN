@@ -39,8 +39,7 @@ class DATNN(object):
         Softmax function.
 
         """
-        v = np.exp(z)
-        return v / np.sum(v, axis=0)
+        return 1. / (1. + np.exp(-z))
 
     def softmax(self, z):
         """
@@ -181,8 +180,8 @@ class DATNN(object):
          the ith row of the array contains output probabilities for each class for the ith example.
 
         """
-        hidden_layer = self.sigmoid(np.dot(self.W, X.T) + self.b[:,np.newaxis])
-        output_layer = self.sigmoid(np.dot(self.V, hidden_layer) + self.c[:,np.newaxis])
+        hidden_layer = self.sigmoid(np.dot(self.W, X.T) + self.b[:, np.newaxis])
+        output_layer = self.sigmoid(np.dot(self.V, hidden_layer) + self.c[:, np.newaxis])
         return output_layer
 
     def hidden_representation(self, X):
@@ -200,7 +199,7 @@ class DATNN(object):
         output_layer = self.forward(X)
         return np.argmax(output_layer, 0)
 
-    def preduct_domain(self, X):
+    def predict_domain(self, X):
         """
          Compute and return the domain predictions for X, i.e., a 1D array of size len(X).
          the ith row of the array contains the predicted domain (0 or 1) for the ith example.
