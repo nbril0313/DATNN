@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.datasets import make_moons
 from sklearn.decomposition import PCA
 from matplotlib.colors import ListedColormap
-from DANN import DANN
+from DATNN import DANN
 
 from matplotlib import pyplot
 from scipy.spatial.distance import cdist

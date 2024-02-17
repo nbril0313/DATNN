@@ -1,5 +1,5 @@
 import numpy as np
-from DANN import DANN
+from DATNN import DANN
 from mSDA import compute_msda_representation
 from sklearn.datasets import load_svmlight_files
 from sklearn import svm
