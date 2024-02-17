@@ -1,7 +1,7 @@
-from sklearn import datasets
-import plotly.express as px
 import numpy as np
 import pandas as pd
+import plotly.express as px
+from sklearn import datasets
 
 moon_train = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=None)
 moon_test = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=None)
@@ -39,8 +39,8 @@ domain_test = np.full((x_train.shape), 1)
 # visulalization을 위한 label을 따로 생성
 plabel_test = np.full((labels_test.shape), -1)
 
-x = np.concatenate((x_train, x_test)) # train과 test x 좌표 모음
-y = np.concatenate((y_train, y_test)) # train과 test y 좌표 모음
+x = np.concatenate((x_train, x_test))  # train과 test x 좌표 모음
+y = np.concatenate((y_train, y_test))  # train과 test y 좌표 모음
 
 # real labels
 labels = np.concatenate((labels_train, labels_test))
@@ -53,7 +53,6 @@ plabels = np.concatenate((labels_train, plabel_test))
 
 # dictionary 생성
 d = {'x': x, 'y': y, 'labels': labels, 'domain': domain, 'plabels': plabels}
-print(d)
 df = pd.DataFrame(data=d)
 
 df.loc[(df['domain'] == 0) & (df['labels'] == 0), 'x'] *= 0.8
@@ -62,3 +61,44 @@ df.loc[(df['domain'] == 0) & (df['labels'] == 1), 'x'] *= 0.8
 df.loc[(df['domain'] == 1) & (df['labels'] == 0), 'y'] -= 0.2
 df.loc[(df['domain'] == 1) & (df['labels'] == 1), 'y'] -= 0.2
 
+fig = px.scatter(df, x='x', y='y', color='plabels')
+# fig.show()
+
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from torchvision.transforms import ToTensor
+import torch.nn.functional as F
+import torch.optim as optim
+
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
+
+class MoonDataset(Dataset):
+    def __init__(self, data, onehot=False):
+        self.X = torch.Tensor(data.iloc[:, 0:2].to_numpy())
+        self.y = torch.LongTensor(data.iloc[:, 2].to_numpy())
+        if onehot:
+            self.y = F.one_hot(self.y)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        X = self.X[idx, :]
+        y = self.y[idx]
+        return X, y
+
+
+batch_size = 64
+
+label_dataset = MoonDataset(df.loc[df['domain'] == 0, ['x', 'y', 'labels']])
+domain_dataset = MoonDataset(df.loc[:, ['x', 'y', 'domain']])
+test_dataset = MoonDataset(df.loc[df['domain'] == 1, ['x', 'y', 'labels']])
+
+# Create data loaders.
+label_dataloader = DataLoader(label_dataset, shuffle=True, batch_size=batch_size)
+domain_dataloader = DataLoader(domain_dataset, shuffle=True, batch_size=batch_size * 2)
+test_dataloader = DataLoader(test_dataset, shuffle=True, batch_size=batch_size * 2)
