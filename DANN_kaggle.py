@@ -419,4 +419,143 @@ fig.add_trace(
 )
 
 fig.update_layout(height=450, width=900, title_text="Manual weights update, domain loss and acc")
+# fig.show()
+
+Gf = FeatureExtractor()
+Gy = LabelPredictor()
+Gd = DomainClassifier()
+
+label_criteria = nn.NLLLoss()
+domain_criteria = nn.CrossEntropyLoss()
+
+epochs = 1000
+
+mu = torch.FloatTensor([0.01])
+lmbda = torch.FloatTensor([0.001])
+
+epoch_log = []
+label_loss_log, label_acc_log = [], []
+domain_loss_log, domain_acc_log = [], []
+test_acc_log = []
+
+for epoch in range(epochs):
+
+    label_loss_sum, label_acc_sum = 0, 0
+    domain_loss_sum, domain_acc_sum = 0, 0
+    test_acc_sum, cnt = 0, 0
+
+    for label_data, domain_data, test_data \
+            in zip(label_dataloader, domain_dataloader, test_dataloader):
+        label_X, label_y = label_data
+        domain_X, domain_y = domain_data
+        test_X, test_y = test_data
+
+        # train label of training data
+        Gf.zero_grad()
+        Gy.zero_grad()
+
+        feature = Gf(label_X)
+        pred = Gy(feature)
+        pred = F.softmax(pred, dim=1)
+
+        loss = label_criteria(pred, label_y)
+        loss.backward()
+
+        label_loss_sum += np.exp(loss.item())
+
+        # get grades and manually update Gy
+        with torch.no_grad():
+            # get grads of Gf
+            Gf_label_grads = [param.grad for param in Gf.parameters()]
+
+            # update Gy
+            for param in Gy.parameters():
+                param -= mu * param.grad
+
+        with torch.no_grad():
+            sample_num = len(label_X)
+            feature = Gf(label_X)
+            pred = Gd(feature)
+            pred = F.softmax(pred, dim=1)
+
+            label_acc_sum += torch.sum(torch.argmax(pred, dim=1) == label_y) / sample_num
+
+        # train domain classifier
+        Gf.zero_grad()
+        Gd.zero_grad()
+
+        feature = Gf(domain_X)
+        reversed_feature = GradientReversalFn.apply(feature, lmbda)
+        pred = Gd(reversed_feature)
+
+        loss = domain_criteria(pred, domain_y)
+        loss.backward()
+        domain_loss_sum += loss.item()
+
+        # get grades and manually update Gf, Gy
+        with torch.no_grad():
+            # update Gf
+            for param in Gf.parameters():
+                param -= mu * param.grad
+
+            # update Gd
+            for param in Gd.parameters():
+                param -= mu * param.grad
+
+        # domain accuracy
+        with torch.no_grad():
+            sample_num = len(domain_X)
+            feature = Gf(domain_X)
+            pred = Gd(feature)
+            domain_acc_sum += torch.sum(torch.argmax(pred, dim=1) == domain_y) / sample_num
+
+        with torch.no_grad():
+            sample_num = len(test_X)
+
+            feature = Gf(test_X)
+            pred = Gy(feature)
+            pred = F.softmax(pred, dim=1)
+
+            test_acc_sum += torch.sum(torch.argmax(pred, dim=1) == test_y) / sample_num
+
+        cnt += 1
+
+    epoch_log.append(epoch)
+
+    label_loss_log.append(label_loss_sum / cnt)
+    label_acc_log.append(label_acc_sum / cnt)
+
+    domain_loss_log.append(domain_loss_sum / cnt)
+    domain_acc_log.append(domain_acc_sum / cnt)
+
+    test_acc_log.append(test_acc_sum / cnt)
+
+fig = make_subplots(rows=3, cols=2)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=label_loss_log),
+    row=1, col=1
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=label_acc_log),
+    row=1, col=2
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=domain_loss_log),
+    row=2, col=1
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=domain_acc_log),
+    row=2, col=2
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=test_acc_log),
+    row=3, col=1
+)
+
+fig.update_layout(height=1350, width=900, title_text="Manual weights update, domain loss and acc")
 fig.show()
