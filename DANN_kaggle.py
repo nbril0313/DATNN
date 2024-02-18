@@ -1,12 +1,12 @@
+import math
 import numpy as np
 import pandas as pd
 import plotly.express as px
 from sklearn import datasets
+from torch.autograd import Function
 
 moon_train = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=None)
 moon_test = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=None)
-
-import math
 
 
 def rotate(origin, points, angle):
@@ -202,3 +202,221 @@ for epoch in range(epochs):
     loss_log.append(loss_sum / cnt)
     epoch_log.append(epoch)
 
+fig = make_subplots(rows=1, cols=2)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=loss_log, name='loss'),
+    row=1, col=1
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=acc_log, name='accuracy'),
+    row=1, col=2,
+)
+
+fig.update_layout(height=450, width=900, title_text="Train label Results")
+# fig.show()
+
+Gf = FeatureExtractor()
+Gd = DomainClassifier()
+
+domain_criteria = nn.CrossEntropyLoss()
+domain_optimizer = optim.Adam(list(Gf.parameters()) + list(Gd.parameters()), lr=1e-3)
+
+epochs = 100
+
+loss_log = []
+acc_log = []
+epoch_log = []
+
+for epoch in range(epochs):
+    acc_sum, loss_sum, cnt = (0, 0, 0)
+    for data in domain_dataloader:
+        X, y = data
+
+        sample_num = len(X)
+
+        Gf.zero_grad()
+        Gd.zero_grad()
+
+        feature = Gf(X)
+        pred = Gd(feature)
+
+        loss = domain_criteria(pred, y)
+
+        domain_optimizer.zero_grad()
+        loss.backward()
+        domain_optimizer.step()
+
+        loss_sum += loss.item()
+
+        with torch.no_grad():
+            feature = Gf(X)
+            pred = Gd(feature)
+            acc_sum += torch.sum(torch.argmax(pred, dim=1) == y) / sample_num
+        cnt += 1
+
+    acc_log.append(acc_sum / cnt)
+    loss_log.append(loss_sum / cnt)
+    epoch_log.append(epoch)
+
+fig = make_subplots(rows=1, cols=2)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=loss_log, name='loss'),
+    row=1, col=1
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=acc_log, name='accuracy'),
+    row=1, col=2
+)
+
+fig.update_layout(height=450, width=900, title_text="Train domain Results")
+# fig.show()
+
+Gf = FeatureExtractor()
+Gy = LabelPredictor()
+
+label_criteria = nn.NLLLoss()
+
+epochs = 200
+
+mu = torch.FloatTensor([0.01])
+
+loss_log = []
+acc_log = []
+epoch_log = []
+
+for epoch in range(epochs):
+    acc_sum, loss_sum, cnt = (0, 0, 0)
+
+    for data in label_dataloader:
+        X, y = data
+
+        sample_num = len(X)
+
+        Gf.zero_grad()
+        Gy.zero_grad()
+
+        feature = Gf(X)
+        pred = Gy(feature)
+
+        pred = F.softmax(pred, dim=1)
+        loss = label_criteria(pred, y)
+
+        loss.backward()
+        loss_sum += np.exp(loss.item())
+
+        with torch.no_grad():
+            # update Gf
+            for param in Gf.parameters():
+                param -= mu * param.grad
+
+            # update Gy
+            for param in Gy.parameters():
+                param -= mu * param.grad
+
+        with torch.no_grad():
+            feature = Gf(X)
+            pred = Gy(feature)
+            pred = F.softmax(pred, dim=1)
+            acc_sum += torch.sum(torch.argmax(pred, dim=1) == y) / sample_num
+        cnt += 1
+
+    acc_log.append(acc_sum / cnt)
+    loss_log.append(loss_sum / cnt)
+    epoch_log.append(epoch)
+
+fig = make_subplots(rows=1, cols=2)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=loss_log, name='loss'),
+    row=1, col=1
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=acc_log, name='acc'),
+    row=1, col=2
+)
+
+fig.update_layout(height=450, width=900, title_text="Manual weights update, label loss and acc")
+# fig.show()
+
+
+class GradientReversalFn(Function):
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.alpha = alpha
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        output = grad_output.neg() * ctx.alpha  # Reverse gradient
+        return output, None
+
+
+Gf = FeatureExtractor()
+Gd = DomainClassifier()
+
+domain_criteria = nn.CrossEntropyLoss()
+
+# Define optimizers for Gf and Gd
+optimizer_Gf = optim.Adam(Gf.parameters(), lr=1e-3)
+optimizer_Gd = optim.Adam(Gd.parameters(), lr=1e-3)
+
+epochs = 200
+
+loss_log = []
+acc_log = []
+epoch_log = []
+
+lmbda = torch.FloatTensor([0.05])
+
+for epoch in range(epochs):
+    acc_sum, loss_sum, cnt = (0, 0, 0)
+    for data in domain_dataloader:
+        X, y = data
+        sample_num = len(X)
+
+        optimizer_Gf.zero_grad()
+        optimizer_Gd.zero_grad()
+
+        feature = Gf(X)
+        reversed_feature = GradientReversalFn.apply(feature, lmbda)
+        pred = Gd(reversed_feature)
+
+        loss = domain_criteria(pred, y)
+        loss.backward()
+
+        optimizer_Gf.step()
+        optimizer_Gd.step()
+
+        loss_sum += loss.item()
+
+        with torch.no_grad():
+            feature = Gf(X)
+            pred = Gd(feature)
+            pred = torch.argmax(pred, dim=1)
+            acc = (pred == y).float().mean().item()
+            acc_sum += acc
+        cnt += 1
+
+    acc_log.append(acc_sum / cnt)
+    loss_log.append(loss_sum / cnt)
+    epoch_log.append(epoch)
+
+fig = make_subplots(rows=1, cols=2)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=loss_log, name='loss'),
+    row=1, col=1
+)
+
+fig.add_trace(
+    go.Scatter(x=epoch_log, y=acc_log, name='acc'),
+    row=1, col=2
+)
+
+fig.update_layout(height=450, width=900, title_text="Manual weights update, domain loss and acc")
+fig.show()
