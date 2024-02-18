@@ -102,3 +102,103 @@ test_dataset = MoonDataset(df.loc[df['domain'] == 1, ['x', 'y', 'labels']])
 label_dataloader = DataLoader(label_dataset, shuffle=True, batch_size=batch_size)
 domain_dataloader = DataLoader(domain_dataset, shuffle=True, batch_size=batch_size * 2)
 test_dataloader = DataLoader(test_dataset, shuffle=True, batch_size=batch_size * 2)
+
+
+# Define model
+class FeatureExtractor(nn.Module):
+    def __init__(self):
+        super(FeatureExtractor, self).__init__()
+
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(2, 8),
+            nn.ReLU(),
+            nn.Linear(8, 4),
+            nn.ReLU(),
+            nn.Linear(4, 4)
+        )
+
+    def forward(self, x):
+        feature = self.linear_relu_stack(x)
+        return feature
+
+
+# Define model
+class LabelPredictor(nn.Module):
+    def __init__(self):
+        super(LabelPredictor, self).__init__()
+
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(4, 8),
+            nn.ReLU(),
+            nn.Linear(8, 2)
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+
+# Define model
+class DomainClassifier(nn.Module):
+    def __init__(self):
+        super(DomainClassifier, self).__init__()
+
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(4, 8),
+            nn.ReLU(),
+            nn.Linear(8, 2),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+
+Gf = FeatureExtractor()
+Gy = LabelPredictor()
+
+label_criteria = nn.NLLLoss()
+label_optimizer = optim.Adam(list(Gf.parameters()) + list(Gy.parameters()), lr=1e-3)
+
+epochs = 100
+
+loss_log = []
+acc_log = []
+epoch_log = []
+
+for epoch in range(epochs):
+    acc_sum, loss_sum, cnt = (0, 0, 0)
+
+    for data in label_dataloader:
+        X, y = data
+
+        sample_num = len(X)
+
+        Gf.zero_grad()
+        Gy.zero_grad()
+
+        feature = Gf(X)
+        pred = Gy(feature)
+
+        pred = F.softmax(pred, dim=1)
+
+        loss = label_criteria(pred, y)
+
+        label_optimizer.zero_grad()
+        loss.backward()
+        label_optimizer.step()
+
+        loss_sum += np.exp(loss.item())
+
+        with torch.no_grad():
+            feature = Gf(X)
+            pred = Gy(feature)
+            pred = F.softmax(pred, dim=1)
+            acc_sum += torch.sum(torch.argmax(pred, dim=1) == y) / sample_num
+        cnt += 1
+
+    acc_log.append(acc_sum / cnt)
+    loss_log.append(loss_sum / cnt)
+    epoch_log.append(epoch)
+
