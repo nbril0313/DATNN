@@ -5,8 +5,8 @@ import plotly.express as px
 from sklearn import datasets
 from torch.autograd import Function
 
-moon_train = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=42)
-moon_test = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=42)
+moon_train = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=None)
+moon_test = datasets.make_moons(n_samples=1000, shuffle=True, noise=0.05, random_state=None)
 
 
 def rotate(origin, points, angle):
@@ -430,7 +430,7 @@ domain_criteria = nn.CrossEntropyLoss()
 
 epochs = 1000
 
-mu = torch.FloatTensor([0.1])
+mu = torch.FloatTensor([0.01])
 lmbda = torch.FloatTensor([0.001])
 
 epoch_log = []
@@ -443,7 +443,6 @@ best_test_acc = 0.0
 best_epoch = 0
 patience = 10
 patience_counter = 0
-early_stop = False
 
 for epoch in range(epochs):
 
@@ -543,13 +542,15 @@ for epoch in range(epochs):
             best_test_acc = current_test_acc
             best_epoch = epoch  # Save the epoch at which we have the best test accuracy
             patience_counter = 0
-            # ... Save the best model if needed ...
+            # Save the best model
+            torch.save(Gf.state_dict(), 'best_Gf.pth')
+            torch.save(Gy.state_dict(), 'best_Gy.pth')
+            print(f"Epoch {epoch}: New best test accuracy: {best_test_acc}. Model saved.")
         else:
             patience_counter += 1
 
         if patience_counter >= patience:
-            print(f"Stopping early at epoch {epoch} due to no improvement in test accuracy.")
-            early_stop = True
+            # print(f"Stopping early at epoch {epoch} due to no improvement in test accuracy.")
             break
 
     epoch_log.append(epoch)
@@ -599,4 +600,21 @@ fig.add_trace(
 
 fig.update_layout(height=1350, width=900, title_text="Manual weights update, domain loss and acc")
 fig.show()
+
 print(best_epoch)
+
+# Load the best model
+Gf.load_state_dict(torch.load('best_Gf.pth'))
+Gy.load_state_dict(torch.load('best_Gy.pth'))
+
+df['test_result'] = df['labels']
+
+with torch.no_grad():
+    feature = Gf(test_dataset.X)
+    pred = Gy(feature)
+    pred = F.softmax(pred, dim=1)
+    df.loc[1000:, 'test_result'] = torch.argmax(pred, dim=1).numpy() + 2
+
+fig = px.scatter(df, x='x', y='y', color='test_result')
+fig.show()
+
