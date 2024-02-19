@@ -421,28 +421,246 @@ class GradientReversalFn(Function):
 # fig.update_layout(height=450, width=900, title_text="Manual weights update, domain loss and acc")
 # # fig.show()
 
+# Gf = FeatureExtractor()
+# Gy = LabelPredictor()
+# Gd = DomainClassifier()
+#
+# label_criteria = nn.NLLLoss()
+# domain_criteria = nn.CrossEntropyLoss()
+#
+# epochs = 1000
+#
+# mu = torch.FloatTensor([0.01])
+# lmbda = torch.FloatTensor([0.001])
+#
+# epoch_log = []
+# label_loss_log, label_acc_log = [], []
+# domain_loss_log, domain_acc_log = [], []
+# test_acc_log = []
+#
+# # Early stopping parameters
+# best_test_acc = 0.0
+# best_epoch = 0
+# patience = 10
+# patience_counter = 0
+#
+# for epoch in range(epochs):
+#
+#     label_loss_sum, label_acc_sum = 0, 0
+#     domain_loss_sum, domain_acc_sum = 0, 0
+#     test_acc_sum, cnt = 0, 0
+#
+#     for label_data, domain_data, test_data \
+#             in zip(label_dataloader, domain_dataloader, test_dataloader):
+#
+#         # if early_stop:
+#         #     break
+#
+#         label_X, label_y = label_data
+#         domain_X, domain_y = domain_data
+#         test_X, test_y = test_data
+#
+#         # train label of training data
+#         Gf.zero_grad()
+#         Gy.zero_grad()
+#
+#         feature = Gf(label_X)
+#         pred = Gy(feature)
+#         pred = F.softmax(pred, dim=1)
+#
+#         loss = label_criteria(pred, label_y)
+#         loss.backward()
+#
+#         label_loss_sum += np.exp(loss.item())
+#
+#         # get grades and manually update Gy
+#         with torch.no_grad():
+#             # get grads of Gf
+#             # Gf_label_grads = [param.grad for param in Gf.parameters()]
+#
+#             # Update Gf
+#             for param in Gf.parameters():
+#                 param -= mu * param.grad
+#
+#             # update Gy
+#             for param in Gy.parameters():
+#                 param -= mu * param.grad
+#
+#         with torch.no_grad():
+#             sample_num = len(label_X)
+#             feature = Gf(label_X)
+#             pred = Gd(feature)
+#             pred = F.softmax(pred, dim=1)
+#
+#             label_acc_sum += torch.sum(torch.argmax(pred, dim=1) == label_y) / sample_num
+#
+#         # train domain classifier
+#         Gf.zero_grad()
+#         Gd.zero_grad()
+#
+#         feature = Gf(domain_X)
+#         reversed_feature = GradientReversalFn.apply(feature, lmbda)
+#         domain_pred = Gd(reversed_feature)
+#
+#         domain_loss = domain_criteria(domain_pred, domain_y)
+#         domain_loss.backward()
+#         domain_loss_sum += domain_loss.item()
+#
+#         # get grades and manually update Gf, Gy
+#         with torch.no_grad():
+#             # update Gf
+#             for param in Gf.parameters():
+#                 param -= mu * param.grad
+#
+#             # update Gd
+#             for param in Gd.parameters():
+#                 param -= mu * param.grad
+#
+#         # domain accuracy
+#         with torch.no_grad():
+#             sample_num = len(domain_X)
+#             feature = Gf(domain_X)
+#             pred = Gd(feature)
+#             domain_acc_sum += torch.sum(torch.argmax(pred, dim=1) == domain_y) / sample_num
+#
+#         with torch.no_grad():
+#             sample_num = len(test_X)
+#
+#             feature = Gf(test_X)
+#             pred = Gy(feature)
+#             pred = F.softmax(pred, dim=1)
+#
+#             test_acc_sum += torch.sum(torch.argmax(pred, dim=1) == test_y) / sample_num
+#
+#         cnt += 1
+#
+#         # Check early stopping criteria
+#         current_test_acc = test_acc_sum / cnt
+#         test_acc_log.append(current_test_acc)
+#
+#         if current_test_acc > best_test_acc:
+#             best_test_acc = current_test_acc
+#             best_epoch = epoch  # Save the epoch at which we have the best test accuracy
+#             patience_counter = 0
+#             # Save the best model
+#             torch.save(Gf.state_dict(), 'best_Gf.pth')
+#             torch.save(Gy.state_dict(), 'best_Gy.pth')
+#             print(f"Epoch {epoch}: New best test accuracy: {best_test_acc}. Model saved.")
+#         else:
+#             patience_counter += 1
+#
+#         if patience_counter >= patience:
+#             # print(f"Stopping early at epoch {epoch} due to no improvement in test accuracy.")
+#             break
+#
+#     epoch_log.append(epoch)
+#
+#     label_loss_log.append(label_loss_sum / cnt)
+#     label_acc_log.append(label_acc_sum / cnt)
+#
+#     domain_loss_log.append(domain_loss_sum / cnt)
+#     domain_acc_log.append(domain_acc_sum / cnt)
+#
+#     test_acc_log.append(test_acc_sum / cnt)
+#
+# # At the end of training, adjust the logs to only go up to the best epoch
+# label_loss_log = label_loss_log[:best_epoch + 30]
+# label_acc_log = label_acc_log[:best_epoch + 30]
+# domain_loss_log = domain_loss_log[:best_epoch + 30]
+# domain_acc_log = domain_acc_log[:best_epoch + 30]
+# test_acc_log = test_acc_log[:best_epoch + 30]
+# epoch_log = epoch_log[:best_epoch + 30]
+#
+# fig = make_subplots(rows=3, cols=2)
+#
+# fig.add_trace(
+#     go.Scatter(x=epoch_log, y=label_loss_log),
+#     row=1, col=1
+# )
+#
+# fig.add_trace(
+#     go.Scatter(x=epoch_log, y=label_acc_log),
+#     row=1, col=2
+# )
+#
+# fig.add_trace(
+#     go.Scatter(x=epoch_log, y=domain_loss_log),
+#     row=2, col=1
+# )
+#
+# fig.add_trace(
+#     go.Scatter(x=epoch_log, y=domain_acc_log),
+#     row=2, col=2
+# )
+#
+# fig.add_trace(
+#     go.Scatter(x=epoch_log, y=test_acc_log),
+#     row=3, col=1
+# )
+#
+# fig.update_layout(height=1350, width=900, title_text="Manual weights update, domain loss and acc")
+# # fig.show()
+#
+# print(best_epoch)
+#
+# # Load the best model
+# Gf.load_state_dict(torch.load('best_Gf.pth'))
+# Gy.load_state_dict(torch.load('best_Gy.pth'))
+#
+# df['test_result'] = df['labels']
+#
+# with torch.no_grad():
+#     feature = Gf(test_dataset.X)
+#     pred = Gy(feature)
+#     pred = F.softmax(pred, dim=1)
+#     df.loc[1000:, 'test_result'] = torch.argmax(pred, dim=1).numpy() + 2
+#
+# fig = px.scatter(df, x='x', y='y', color='test_result')
+# # fig.show()
+
+from pytorch_revgrad import RevGrad
+
+
+# Define model
+class DomainClassifier(nn.Module):
+    def __init__(self):
+        super(DomainClassifier, self).__init__()
+
+        self.linear_relu_stack = nn.Sequential(
+            RevGrad(),
+            nn.Linear(4, 8),
+            nn.ReLU(),
+            nn.Linear(8, 2),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+
 Gf = FeatureExtractor()
 Gy = LabelPredictor()
 Gd = DomainClassifier()
 
+mu = 1e-3
+lmda = 1e-4
+
 label_criteria = nn.NLLLoss()
+label_optimizer = optim.Adam(list(Gf.parameters()) + list(Gd.parameters()), lr=mu)
+
 domain_criteria = nn.CrossEntropyLoss()
+domain_optimizer = optim.Adam(list(Gf.parameters()) + list(Gd.parameters()), lr=mu * lmda)
 
 epochs = 1000
 
 mu = torch.FloatTensor([0.01])
-lmbda = torch.FloatTensor([0.001])
+lmbda = torch.FloatTensor([0.5])
 
 epoch_log = []
 label_loss_log, label_acc_log = [], []
 domain_loss_log, domain_acc_log = [], []
 test_acc_log = []
-
-# Early stopping parameters
-best_test_acc = 0.0
-best_epoch = 0
-patience = 10
-patience_counter = 0
 
 for epoch in range(epochs):
 
@@ -450,12 +668,7 @@ for epoch in range(epochs):
     domain_loss_sum, domain_acc_sum = 0, 0
     test_acc_sum, cnt = 0, 0
 
-    for label_data, domain_data, test_data \
-            in zip(label_dataloader, domain_dataloader, test_dataloader):
-
-        # if early_stop:
-        #     break
-
+    for label_data, domain_data, test_data in zip(label_dataloader, domain_dataloader, test_dataloader):
         label_X, label_y = label_data
         domain_X, domain_y = domain_data
         test_X, test_y = test_data
@@ -469,25 +682,15 @@ for epoch in range(epochs):
         pred = F.softmax(pred, dim=1)
 
         loss = label_criteria(pred, label_y)
+        label_optimizer.zero_grad()
         loss.backward()
+        label_optimizer.step()
 
         label_loss_sum += np.exp(loss.item())
 
-        # get grades and manually update Gy
-        with torch.no_grad():
-            # get grads of Gf
-            # Gf_label_grads = [param.grad for param in Gf.parameters()]
-
-            # Update Gf
-            for param in Gf.parameters():
-                param -= mu * param.grad
-
-            # update Gy
-            for param in Gy.parameters():
-                param -= mu * param.grad
-
         with torch.no_grad():
             sample_num = len(label_X)
+
             feature = Gf(label_X)
             pred = Gd(feature)
             pred = F.softmax(pred, dim=1)
@@ -499,22 +702,13 @@ for epoch in range(epochs):
         Gd.zero_grad()
 
         feature = Gf(domain_X)
-        reversed_feature = GradientReversalFn.apply(feature, lmbda)
-        domain_pred = Gd(reversed_feature)
+        pred = Gd(feature)
 
-        domain_loss = domain_criteria(domain_pred, domain_y)
-        domain_loss.backward()
-        domain_loss_sum += domain_loss.item()
-
-        # get grades and manually update Gf, Gy
-        with torch.no_grad():
-            # update Gf
-            for param in Gf.parameters():
-                param -= mu * param.grad
-
-            # update Gd
-            for param in Gd.parameters():
-                param -= mu * param.grad
+        loss = domain_criteria(pred, domain_y)
+        domain_optimizer.zero_grad()
+        loss.backward()
+        domain_optimizer.step()
+        domain_loss_sum += loss.item()
 
         # domain accuracy
         with torch.no_grad():
@@ -534,25 +728,6 @@ for epoch in range(epochs):
 
         cnt += 1
 
-        # Check early stopping criteria
-        current_test_acc = test_acc_sum / cnt
-        test_acc_log.append(current_test_acc)
-
-        if current_test_acc > best_test_acc:
-            best_test_acc = current_test_acc
-            best_epoch = epoch  # Save the epoch at which we have the best test accuracy
-            patience_counter = 0
-            # Save the best model
-            torch.save(Gf.state_dict(), 'best_Gf.pth')
-            torch.save(Gy.state_dict(), 'best_Gy.pth')
-            print(f"Epoch {epoch}: New best test accuracy: {best_test_acc}. Model saved.")
-        else:
-            patience_counter += 1
-
-        if patience_counter >= patience:
-            # print(f"Stopping early at epoch {epoch} due to no improvement in test accuracy.")
-            break
-
     epoch_log.append(epoch)
 
     label_loss_log.append(label_loss_sum / cnt)
@@ -563,49 +738,35 @@ for epoch in range(epochs):
 
     test_acc_log.append(test_acc_sum / cnt)
 
-# At the end of training, adjust the logs to only go up to the best epoch
-label_loss_log = label_loss_log[:best_epoch + 30]
-label_acc_log = label_acc_log[:best_epoch + 30]
-domain_loss_log = domain_loss_log[:best_epoch + 30]
-domain_acc_log = domain_acc_log[:best_epoch + 30]
-test_acc_log = test_acc_log[:best_epoch + 30]
-epoch_log = epoch_log[:best_epoch + 30]
-
 fig = make_subplots(rows=3, cols=2)
 
 fig.add_trace(
-    go.Scatter(x=epoch_log, y=label_loss_log),
+    go.Scatter(x=epoch_log, y=label_loss_log, name='label loss'),
     row=1, col=1
 )
 
 fig.add_trace(
-    go.Scatter(x=epoch_log, y=label_acc_log),
+    go.Scatter(x=epoch_log, y=label_acc_log, name='label acc'),
     row=1, col=2
 )
 
 fig.add_trace(
-    go.Scatter(x=epoch_log, y=domain_loss_log),
+    go.Scatter(x=epoch_log, y=domain_loss_log, name='domain loss'),
     row=2, col=1
 )
 
 fig.add_trace(
-    go.Scatter(x=epoch_log, y=domain_acc_log),
+    go.Scatter(x=epoch_log, y=domain_acc_log, name='domain acc'),
     row=2, col=2
 )
 
 fig.add_trace(
-    go.Scatter(x=epoch_log, y=test_acc_log),
+    go.Scatter(x=epoch_log, y=test_acc_log, name='test acc'),
     row=3, col=1
 )
 
 fig.update_layout(height=1350, width=900, title_text="Manual weights update, domain loss and acc")
 fig.show()
-
-print(best_epoch)
-
-# Load the best model
-Gf.load_state_dict(torch.load('best_Gf.pth'))
-Gy.load_state_dict(torch.load('best_Gy.pth'))
 
 df['test_result'] = df['labels']
 
@@ -617,4 +778,3 @@ with torch.no_grad():
 
 fig = px.scatter(df, x='x', y='y', color='test_result')
 fig.show()
-
